@@ -9,6 +9,7 @@ import RepairJobs from "./repairjobs/RepairJobs";
 import Sales from "./sales/Sales";
 import Notifications from "./notifications/Notifications";
 import Login from "./Components/Login";
+import Dashboard from "./dashboards/Dashboard"; // ✅ ADD THIS
 import { supabase } from "../supabaseClient";
 
 function TopBar({ title, onToggleSidebar, onOpenNotifications, unreadCount }) {
@@ -174,7 +175,10 @@ export default function App() {
         return;
       }
 
-      localStorage.setItem("sidebar_keys", JSON.stringify(data.sidebar_keys || []));
+      localStorage.setItem(
+        "sidebar_keys",
+        JSON.stringify(data.sidebar_keys || []),
+      );
       localStorage.setItem("role", data.role);
       localStorage.setItem("full_name", data.full_name);
 
@@ -198,7 +202,9 @@ export default function App() {
 
       const { data, error } = await supabase
         .from("notifications")
-        .select("notification_id, to_employee_id, job_id, type, message, is_read, created_at")
+        .select(
+          "notification_id, to_employee_id, job_id, type, message, is_read, created_at",
+        )
         .eq("is_deleted", false)
         .eq("is_read", false)
         .eq("to_employee_id", employeeId)
@@ -210,7 +216,7 @@ export default function App() {
       }
 
       // ✅ badge only for repairman
-      setUnreadCount(isRepairman ? (data?.length || 0) : 0);
+      setUnreadCount(isRepairman ? data?.length || 0 : 0);
     }
 
     loadUnread();
@@ -224,7 +230,8 @@ export default function App() {
           const n = payload.new;
 
           const isMine =
-            n.to_employee_id && Number(n.to_employee_id) === Number(user.employee_id);
+            n.to_employee_id &&
+            Number(n.to_employee_id) === Number(user.employee_id);
 
           if (!isMine) return;
 
@@ -237,20 +244,23 @@ export default function App() {
 
             // popup ONLY for job created
             if (n.type === "Job Created") {
-              showToast(n.message || `New job received (#${n.job_id})`, n.job_id);
+              showToast(
+                n.message || `New job received (#${n.job_id})`,
+                n.job_id,
+              );
               setActive("jobs"); // optional auto open jobs page
             }
 
             setNotifPing((x) => x + 1);
           }
-        }
+        },
       )
       .on(
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "notifications" },
         () => {
           loadUnread();
-        }
+        },
       )
       .subscribe();
 
@@ -261,6 +271,8 @@ export default function App() {
 
   const renderPage = () => {
     switch (active) {
+      case "dashboard":
+        return <Dashboard />; // ✅ USE REAL DASHBOARD
       case "staff":
         return <Staff />;
       case "customers":
@@ -297,12 +309,7 @@ export default function App() {
       default:
         return (
           <PageShell>
-            {active === "dashboard" && (
-              <Placeholder
-                title="Dashboard"
-                desc="Overview of today’s jobs, sales, low stock, and notifications."
-              />
-            )}
+            <Placeholder title="Not Found" desc="Page not found." />
           </PageShell>
         );
     }
@@ -356,7 +363,9 @@ export default function App() {
             <div className="text-sm font-semibold">New Job</div>
             <div className="text-sm opacity-90 mt-1">{toast.message}</div>
             {toast.jobId ? (
-              <div className="text-xs opacity-70 mt-2">Click to open Jobs (#{toast.jobId})</div>
+              <div className="text-xs opacity-70 mt-2">
+                Click to open Jobs (#{toast.jobId})
+              </div>
             ) : null}
           </button>
         </div>
