@@ -14,6 +14,10 @@ export default function RepairJobForm({
   const [custMobile, setCustMobile] = useState("");
   const [custAddress, setCustAddress] = useState("");
   const [custNIC, setCustNIC] = useState("");
+  const [screenLock, setScreenLock] = useState("");
+  const [screenLockType, setScreenLockType] = useState("number");
+  const [isPatternValid, setIsPatternValid] = useState(false);
+  const [isDrawingPattern, setIsDrawingPattern] = useState(false);
 
   const [customerOptions, setCustomerOptions] = useState([]);
   const [selectedCustomer, setSelectedCustomer] = useState(null);
@@ -29,14 +33,27 @@ export default function RepairJobForm({
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
 
-  const canSave = useMemo(() => {
-    if (!custName.trim()) return false;
-    if (!custMobile.trim()) return false;
-    if (!mobileName.trim()) return false;
-    if (files.length > 6) return false;
-    return true;
-  }, [custName, custMobile, mobileName, files.length]);
+function isValidScreenLock(value) {
+  if (!value) return false;
+  if (screenLockType === "pattern") return value.length >= 4;
+  if (screenLockType === "number") return /^\d+$/.test(value);
+  if (screenLockType === "letters") return /^[A-Za-z]+$/.test(value);
+  return false;
+}
 
+  // ✅ Can save
+const canSave = useMemo(() => {
+  if (!custName.trim()) return false;
+  if (!custMobile.trim()) return false;
+  if (!mobileName.trim()) return false;
+  if (files.length > 6) return false;
+  if (!isValidScreenLock(screenLock)) return false;
+
+  // remove isDrawingPattern from here; only value matters
+  return true;
+}, [custName, custMobile, mobileName, files.length, screenLock, screenLockType]);
+
+  // Fetch customers
   useEffect(() => {
     async function fetchCustomers() {
       setLoadingCustomers(true);
@@ -62,21 +79,30 @@ export default function RepairJobForm({
     fetchCustomers();
   }, []);
 
-  // ✅ Autofill when edit
+    // Check pattern whenever inputs change
+useEffect(() => {
+  const patternValid =
+    (selectedCustomer?.value || "").toString().trim() !== "" &&
+    mobileName.trim() !== "" &&
+    screenLock.trim() !== "";
+
+  setIsPatternValid(patternValid);
+}, [selectedCustomer, mobileName, mobileModel, screenLock, notes]);
+
   useEffect(() => {
     if (mode !== "edit" || !initialJob) return;
 
     const c = initialJob.customers || {};
     setCustName(c.full_name || "");
     setCustMobile(c.mobile_number || "");
-    setCustAddress(c.address || ""); // will be empty if not selected in fetch
-    setCustNIC(c.national_id || ""); // will be empty if not selected in fetch
+    setCustAddress(c.address || "");
+    setCustNIC(c.national_id || "");
+    setScreenLock(c.screen_lock || "");
 
     setMobileName(initialJob.mobile_name || "");
     setMobileModel(initialJob.mobile_model || "");
     setNotes(initialJob.notes || "");
 
-    // Set selected customer (so it doesn't create a new one)
     if (initialJob.customer_id) {
       setSelectedCustomer({
         value: initialJob.customer_id,
@@ -87,6 +113,7 @@ export default function RepairJobForm({
           mobile_number: c.mobile_number || "",
           address: c.address || "",
           national_id: c.national_id || "",
+          screen_lock: c.screen_lock || "",
         },
       });
     }
@@ -114,10 +141,8 @@ export default function RepairJobForm({
     setErr("");
 
     try {
-      // ✅ 1) Decide customer_id
       let customerId = selectedCustomer?.value || null;
 
-      // ✅ If customer not selected, create new
       if (!customerId) {
         const { data: customer, error: custErr } = await supabase
           .from("customers")
@@ -126,6 +151,7 @@ export default function RepairJobForm({
             mobile_number: custMobile.trim(),
             address: custAddress.trim() || null,
             national_id: custNIC.trim() || null,
+            screen_lock: screenLock.trim() || null,
             updated_at: new Date().toISOString(),
           })
           .select("customer_id")
@@ -133,88 +159,82 @@ export default function RepairJobForm({
 
         if (custErr) throw custErr;
         customerId = customer.customer_id;
-      } else {
-        // ✅ If editing, optionally update existing customer details
-        if (mode === "edit") {
-          await supabase
-            .from("customers")
-            .update({
-              full_name: custName.trim(),
-              mobile_number: custMobile.trim(),
-              address: custAddress.trim() || null,
-              national_id: custNIC.trim() || null,
-              updated_at: new Date().toISOString(),
-            })
-            .eq("customer_id", customerId);
-        }
+      } else if (mode === "edit") {
+        await supabase
+          .from("customers")
+          .update({
+            full_name: custName.trim(),
+            mobile_number: custMobile.trim(),
+            address: custAddress.trim() || null,
+            national_id: custNIC.trim() || null,
+            screen_lock: screenLock.trim() || null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("customer_id", customerId);
       }
 
-      // ✅ 2) Create or Update job
       let jobId = initialJob?.job_id || null;
 
-      if (mode === "edit" && jobId) {
-        const { error: upErr } = await supabase
-          .from("repair_jobs")
-          .update({
-            customer_id: customerId,
-            mobile_name: mobileName.trim(),
-            mobile_model: mobileModel.trim() || null,
-            notes: notes.trim() || null,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("job_id", jobId);
+const screenLockValue = screenLock.trim() || null; // convert empty to null
 
-        if (upErr) throw upErr;
-      } else {
-        const { data: job, error: jobErr } = await supabase
-          .from("repair_jobs")
-          .insert({
-            customer_id: customerId,
-            created_by_employee_id: createdByEmployeeId || null,
-            mobile_name: mobileName.trim(),
-            mobile_model: mobileModel.trim() || null,
-            status: "Pending",
-            notes: notes.trim() || null,
-            updated_at: new Date().toISOString(),
-          })
-          .select("job_id")
-          .single();
+const jobData = {
+  customer_id: customerId,
+  created_by_employee_id: createdByEmployeeId || null,
+  mobile_name: mobileName.trim(),
+  mobile_model: mobileModel.trim() || null,
+  screen_lock: screenLockValue, // <- this fixes the check constraint
+  notes: notes.trim() || null,
+  status: mode === "create" ? "Pending" : undefined,
+  updated_at: new Date().toISOString(),
+};
 
-        if (jobErr) throw jobErr;
-        jobId = job.job_id;
+if (mode === "edit" && jobId) {
+  const { error: upErr } = await supabase
+    .from("repair_jobs")
+    .update(jobData)
+    .eq("job_id", jobId);
 
-        // ✅ Notify only on CREATE
-        const { data: emps, error: empErr } = await supabase
-          .from("employees")
-          .select("employee_id, role")
-          .eq("is_deleted", false)
-          .eq("is_active", true);
+  if (upErr) throw upErr;
+} else {
+const { data: job, error: jobErr } = await supabase
+  .from("repair_jobs")
+  .insert(jobData)
+  .select("job_id")
+  .single();
 
-        if (!empErr && emps?.length) {
-          const msg = `New job #${jobId} - ${custName.trim()} (${custMobile.trim()}) | ${mobileName.trim()} ${
-            mobileModel.trim() || ""
-          }`;
+if (jobErr) throw jobErr;
+const jobId = job.job_id;
 
-          const { error: notifErr } = await supabase.from("notifications").insert(
-            emps.map((e) => ({
-              to_employee_id: e.employee_id,
-              job_id: jobId,
-              type: "Job Created",
-              message: msg,
-              changed_by_employee_id: createdByEmployeeId || null,
-              is_read: false,
-              is_deleted: false,
-              updated_at: new Date().toISOString(),
-            }))
-          );
+  const { data: emps, error: empErr } = await supabase
+    .from("employees")
+    .select("employee_id, role")
+    .eq("is_deleted", false)
+    .eq("is_active", true);
 
-          if (notifErr) console.warn("Notification insert failed:", notifErr.message);
-        }
-      }
+  if (!empErr && emps?.length) {
+    const msg = `New job #${jobId} - ${custName.trim()} (${custMobile.trim()}) | ${mobileName.trim()} ${
+      mobileModel.trim() || ""
+    }`;
 
-      // ✅ 3) Upload photos (optional) — NO Supabase Auth required
+    const { error: notifErr } = await supabase.from("notifications").insert(
+      emps.map((e) => ({
+        to_employee_id: e.employee_id,
+        job_id: jobId,
+        type: "Job Created",
+        message: msg,
+        changed_by_employee_id: createdByEmployeeId || null,
+        is_read: false,
+        is_deleted: false,
+        updated_at: new Date().toISOString(),
+      }))
+    );
+
+    if (notifErr) console.warn("Notification insert failed:", notifErr.message);
+  }
+}
+
       if (files.length > 0 && jobId) {
-        const BUCKET = "job-photos"; // hardcode
+        const BUCKET = "job-photos";
 
         const guessContentType = (fileName) => {
           const ext = (fileName.split(".").pop() || "").toLowerCase();
@@ -241,11 +261,7 @@ export default function RepairJobForm({
 
           const { error: uploadErr } = await supabase.storage
             .from(BUCKET)
-            .upload(path, file, {
-              upsert: true,
-              contentType,
-              cacheControl: "3600",
-            });
+            .upload(path, file, { upsert: true, contentType, cacheControl: "3600" });
 
           if (uploadErr) throw new Error(uploadErr.message || "Upload failed");
 
@@ -382,6 +398,51 @@ export default function RepairJobForm({
                 placeholder="Eg: iPhone"
               />
             </Field>
+            <Field label="Screen Lock">
+              <div className="flex gap-2 items-center">
+                {/* Type selector */}
+                <select
+                  value={screenLockType}
+                  onChange={(e) => {
+                    setScreenLockType(e.target.value);
+                    setScreenLock(""); // reset value when type changes
+                    setIsDrawingPattern(false); // reset drawing state
+                  }}
+                  className="rounded-xl border border-gray-200 px-3 py-2 outline-none focus:ring-2 focus:ring-black/10"
+                >
+                  <option value="number">Number</option>
+                  <option value="letters">Letters</option>
+                  <option value="pattern">Pattern</option>
+                </select>
+
+                {/* Input or Pattern */}
+                {screenLockType === "pattern" ? (
+                  <PatternInput
+                    value={screenLock}
+                    onChange={(val) => setScreenLock(val)}
+                    onStartDrawing={() => setIsDrawingPattern(true)}
+                    onEndDrawing={() => setIsDrawingPattern(false)}
+                  />
+                ) : (
+                  <input
+                    type="text"
+                    value={screenLock}
+                    onChange={(e) => {
+                      let val = e.target.value;
+                      if (screenLockType === "number") val = val.replace(/\D/g, "");
+                      if (screenLockType === "letters") val = val.replace(/[^a-zA-Z]/g, "");
+                      setScreenLock(val);
+                    }}
+                    placeholder={
+                      screenLockType === "number"
+                        ? "Enter numbers only"
+                        : "Enter letters only"
+                    }
+                    className="w-full rounded-xl border border-gray-200 px-3 py-2 outline-none focus:ring-2 focus:ring-black/10"
+                  />
+                )}
+              </div>
+            </Field>
 
             <Field label="Mobile Model">
               <input
@@ -477,6 +538,48 @@ function Field({ label, required, children }) {
         {label} {required ? <span className="text-red-500">*</span> : null}
       </div>
       {children}
+    </div>
+  );
+}
+
+// --------------------- PatternInput ---------------------
+function PatternInput({ value, onChange, onStartDrawing, onEndDrawing }) {
+  const grid = [1, 2, 3, 4, 5, 6, 7, 8, 9]; // 3x3 grid
+  const selected = useMemo(() => value.split(",").filter(Boolean), [value]);
+
+  const toggleCell = (n) => {
+    onStartDrawing?.();
+    const arr = value.split(",").filter(Boolean);
+    if (!arr.includes(String(n))) {
+      arr.push(String(n));
+    } else {
+      // optional: allow deselect if you want
+      // arr.splice(arr.indexOf(String(n)), 1);
+    }
+    onChange(arr.join(","));
+    onEndDrawing?.();
+  };
+
+  return (
+    <div className="grid grid-cols-3 gap-2">
+      {grid.map((n) => (
+        <button
+          key={n}
+          type="button"
+          onClick={() => toggleCell(n)}
+          className={`h-10 w-10 rounded-full border flex items-center justify-center font-medium text-gray-700
+            ${selected.includes(String(n)) ? "bg-black text-white" : "bg-white"}`}
+        >
+          {n}
+        </button>
+      ))}
+      <button
+        type="button"
+        onClick={() => onChange("")}
+        className="col-span-3 mt-2 rounded-xl border border-red-300 px-2 py-1 text-red-600"
+      >
+        Clear Pattern
+      </button>
     </div>
   );
 }

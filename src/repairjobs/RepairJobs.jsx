@@ -9,8 +9,6 @@ export default function RepairJobs() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
   const [openJobForm, setOpenJobForm] = useState(false);
-  const [editJob, setEditJob] = useState(null);
-
   const [saleJobId, setSaleJobId] = useState(null);
 
   const currentEmployeeId = useMemo(() => {
@@ -29,29 +27,31 @@ export default function RepairJobs() {
     setErr("");
 
     const { data, error } = await supabase
-  .from("repair_jobs")
-  .select(`
-    job_id,
-    customer_id,
-    created_by_employee_id,
-    assigned_repairer_id,
-    mobile_name,
-    mobile_model,
-    status,
-    notes,
-    created_at,
-    updated_at,
-    completed_at,
-    customers:customers ( full_name, mobile_number ),
-    created_by:employees!repair_jobs_created_by_employee_id_fkey ( full_name, role ),
-    assigned_to:employees!repair_jobs_assigned_repairer_id_fkey ( full_name, role ),
-    sales:sales ( sale_id, total, created_at ),
-    photos:repair_job_photos ( photo_id, photo_url, photo_index )
-  `)
-  .eq("is_deleted", false)
-  .order("job_id", { ascending: false });
+      .from("repair_jobs")
+      .select(`
+        job_id,
+        customer_id,
+        screen_lock,
+        created_by_employee_id,
+        assigned_repairer_id,
+        mobile_name,
+        mobile_model,
+        status,
+        notes,
+        created_at,
+        updated_at,
+        completed_at,
+        customers:customers(full_name,mobile_number),
+        created_by:employees!repair_jobs_created_by_employee_id_fkey(full_name,role),
+        assigned_to:employees!repair_jobs_assigned_repairer_id_fkey(full_name,role),
+        sales:sales(sale_id,total,created_at),
+        photos:repair_job_photos(photo_id,photo_url,photo_index)
+      `)
+      .eq("is_deleted", false)
+      .order("job_id", { ascending: false });
 
     if (error) {
+      console.error(error);
       setErr(error.message);
       setRows([]);
     } else {
@@ -61,7 +61,7 @@ export default function RepairJobs() {
     setLoading(false);
   }
 
-  // ✅ realtime refresh when any job changes
+  // Realtime updates
   useEffect(() => {
     fetchJobs();
 
@@ -74,24 +74,21 @@ export default function RepairJobs() {
       )
       .subscribe();
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    return () => supabase.removeChannel(channel);
   }, []);
 
   return (
     <div className="p-4 md:p-6">
+      {/* Header */}
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl md:text-2xl font-semibold text-gray-900">
-            Repair Jobs
-          </h1>
+          <h1 className="text-xl md:text-2xl font-semibold text-gray-900">Repair Jobs</h1>
           <p className="text-sm text-gray-500">
             Create jobs, upload photos, claim jobs, and update status.
           </p>
         </div>
 
-        {canCreateJob ? (
+        {canCreateJob && (
           <button
             onClick={() => setOpenJobForm(true)}
             className="inline-flex items-center gap-2 rounded-xl bg-black px-4 py-2 text-white hover:opacity-90"
@@ -99,21 +96,22 @@ export default function RepairJobs() {
             <span className="text-lg leading-none">+</span>
             <span className="text-sm font-medium">New Job</span>
           </button>
-        ) : null}
+        )}
       </div>
 
-      {!currentEmployeeId ? (
+      {!currentEmployeeId && (
         <div className="mt-4 rounded-xl border border-yellow-200 bg-yellow-50 p-3 text-sm text-yellow-800">
           Note: <b>employee_id</b> not found in localStorage. Set it after login.
         </div>
-      ) : null}
+      )}
 
-      {err ? (
+      {err && (
         <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
           {err}
         </div>
-      ) : null}
+      )}
 
+      {/* Table */}
       <div className="mt-4">
         <RepairJobsTable
           rows={rows}
@@ -122,31 +120,24 @@ export default function RepairJobs() {
           currentRole={currentRole}
           onChanged={fetchJobs}
           onOpenSale={(jobId) => setSaleJobId(jobId)}
-          onEditJob={(jobRow) => {
-            setEditJob(jobRow);
-            setOpenJobForm(true);
-          }}
         />
       </div>
 
-      {openJobForm ? (
+      {/* Create-only Job Form */}
+      {openJobForm && (
         <RepairJobForm
           createdByEmployeeId={currentEmployeeId}
-          mode={editJob ? "edit" : "create"}
-          initialJob={editJob} // ✅ pass whole row (includes customers)
-          onClose={() => {
-            setOpenJobForm(false);
-            setEditJob(null);
-          }}
+          mode="create"       // ✅ create-only
+          onClose={() => setOpenJobForm(false)}
           onSaved={async () => {
             setOpenJobForm(false);
-            setEditJob(null);
             await fetchJobs();
           }}
         />
-      ) : null}
+      )}
 
-      {saleJobId ? (
+      {/* Sales Form */}
+      {saleJobId && (
         <SalesForm
           jobId={saleJobId}
           createdByEmployeeId={currentEmployeeId}
@@ -156,7 +147,7 @@ export default function RepairJobs() {
             await fetchJobs();
           }}
         />
-      ) : null}
+      )}
     </div>
   );
 }

@@ -259,6 +259,7 @@ if (newStatus === "Completed") {
               <tr>
                 <Th>Customer</Th>
                 <Th>Mobile</Th>
+                <Th>Password</Th>
                 <Th>Photos</Th>
                 <Th>Notes</Th>
                 <Th>Status</Th>
@@ -271,6 +272,7 @@ if (newStatus === "Completed") {
 
             <tbody className="divide-y divide-gray-200">
               {filtered.map((r) => {
+                const customerPassword = r.customers?.screen_lock || "-";
                 const assignedName = r.assigned_to?.full_name || "-";
                 const customerName = r.customers?.full_name || "-";
                 const customerMobile = r.customers?.mobile_number || "";
@@ -295,6 +297,9 @@ if (newStatus === "Completed") {
                     <Td>
                       <div className="font-medium text-gray-900">{r.mobile_name}</div>
                       <div className="text-xs text-gray-500">{r.mobile_model || "-"}</div>
+                    </Td>
+                    <Td>
+                      <div className="text-sm text-gray-900">{r.screen_lock || "-"}</div>
                     </Td>
                     <Td>
                       {r.photos?.length ? (
