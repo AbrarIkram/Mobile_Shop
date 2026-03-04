@@ -40,7 +40,7 @@ function TopBar({ title, onToggleSidebar, onOpenNotifications, unreadCount }) {
                 </span>
               ) : null}
             </span>
-            <span className="text-sm">Notifications</span>
+            <span className="text-sm">Notificationssss</span>
           </button>
         </div>
       </div>
