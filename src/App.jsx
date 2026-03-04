@@ -24,8 +24,6 @@ function TopBar({ title, onToggleSidebar, onOpenNotifications, unreadCount }) {
           >
             ☰
           </button>
-
-          <div className="text-base font-semibold text-gray-900">{title}</div>
         </div>
 
         <div className="flex items-center gap-2">
