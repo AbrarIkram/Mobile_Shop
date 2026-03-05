@@ -26,7 +26,10 @@ export default function RepairJobs() {
     setLoading(true);
     setErr("");
 
-    const { data, error } = await supabase
+    const userId = Number(localStorage.getItem("employee_id"));
+    const role = localStorage.getItem("role");
+
+    let query = supabase
       .from("repair_jobs")
       .select(`
         job_id,
@@ -47,8 +50,17 @@ export default function RepairJobs() {
         sales:sales(sale_id,total,created_at),
         photos:repair_job_photos(photo_id,photo_url,photo_index)
       `)
-      .eq("is_deleted", false)
-      .order("job_id", { ascending: false });
+      .eq("is_deleted", false);
+
+    // ✅ Repairman logic
+    if (role === "Repairman") {
+      query = query.or(`assigned_repairer_id.eq.${userId},status.eq.Pending`);
+    }
+
+    // ✅ sorting should be last
+    query = query.order("job_id", { ascending: false });
+
+    const { data, error } = await query;
 
     if (error) {
       console.error(error);
