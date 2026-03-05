@@ -67,7 +67,7 @@ export default function CustomerForm({ initialValue, onClose, onSaved }) {
         onClick={saving ? undefined : onClose}
       />
 
-      <div className="relative w-full max-w-xl rounded-2xl bg-white shadow-xl border border-gray-200">
+      <div className="relative w-full max-w-xl rounded-2xl bg-white shadow-xl border border-gray-200 relative w-full max-w-2xl rounded-2xl bg-white shadow-xl border border-gray-200 max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
           <div>
             <div className="text-lg font-semibold text-gray-900">

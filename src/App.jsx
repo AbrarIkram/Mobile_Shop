@@ -12,6 +12,21 @@ import Login from "./Components/Login";
 import Dashboard from "./dashboards/Dashboard"; // ✅ ADD THIS
 import { supabase } from "../supabaseClient";
 
+// 👇 ADD HERE
+const PERMISSION_ORDER = [
+  "dashboard",
+  "jobs",
+  "sales",
+  "products",
+  "services",
+  "customers",
+  "notifications",
+];
+
+const getOrderedPermissions = (permissions = []) => {
+  return PERMISSION_ORDER.filter((key) => permissions.includes(key));
+};
+
 function TopBar({ title, onToggleSidebar, onOpenNotifications, unreadCount }) {
   return (
     <div className="sticky top-0 z-20 bg-white/80 backdrop-blur border-b border-gray-200">
@@ -40,7 +55,7 @@ function TopBar({ title, onToggleSidebar, onOpenNotifications, unreadCount }) {
                 </span>
               ) : null}
             </span>
-            <span className="text-sm">Notificationssss</span>
+            <span className="text-sm">Notifications</span>
           </button>
         </div>
       </div>
@@ -88,7 +103,7 @@ function Placeholder({ title, desc }) {
 }
 
 export default function App() {
-  const [active, setActive] = useState("dashboard");
+  const [active, setActive] = useState(null);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   const [user, setUser] = useState(() => {
@@ -154,6 +169,17 @@ export default function App() {
     setUser(null);
     setActive("dashboard");
   }
+
+  useEffect(() => {
+  if (!user?.sidebar_keys) return;
+
+  const ordered = getOrderedPermissions(user.sidebar_keys);
+
+  if (ordered.length > 0) {
+    setActive(ordered[0]);
+  }
+}, [user]);
+
 
   useEffect(() => {
     if (!user?.employee_id) return;
@@ -319,7 +345,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="flex">
+      <div className="flex min-h-screen bg-gray-50">
         <Sidebar
           active={active}
           onChange={(key) => {
@@ -332,7 +358,7 @@ export default function App() {
           onLogout={logout}
         />
 
-        <div className="flex-1 min-w-0">
+        <div className="flex-1 flex flex-col min-w-0 md:ml-[280px]">
           <TopBar
             title={title}
             onToggleSidebar={() => setMobileSidebarOpen((v) => !v)}
@@ -343,7 +369,9 @@ export default function App() {
             unreadCount={isRepairman ? unreadCount : 0}
           />
 
-          {renderPage()}
+          <div className="flex-1 overflow-auto">
+            {renderPage()}
+          </div>
         </div>
       </div>
 

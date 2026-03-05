@@ -47,93 +47,76 @@ export default function Sidebar({
       />
 
       {/* Sidebar */}
-      <aside
-        className={`fixed md:static z-50 md:z-auto top-0 left-0 h-full w-[280px] bg-white border-r border-gray-200 shadow-sm md:shadow-none transform transition-transform
-        ${mobileOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}`}
-      >
-        {/* Header */}
-        <div className="h-14 px-4 flex items-center justify-between border-b border-gray-200">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-black flex items-center justify-center text-white font-bold">
-              MS
-            </div>
-            <div className="leading-tight">
-              <div className="font-semibold text-gray-900">Mobile Shop</div>
-              <div className="text-xs text-gray-500">Repair & POS</div>
-            </div>
-          </div>
+      <aside className="fixed top-0 left-0 h-screen w-[280px] bg-white border-r border-gray-200 flex flex-col z-50">
+  {/* Scrollable content */}
+  <div className="flex-1 overflow-y-auto p-3">
+    {/* Header */}
+    <div className="h-14 flex items-center gap-3 px-4 border-b border-gray-200">
+      <div className="w-9 h-9 rounded-xl bg-black flex items-center justify-center text-white font-bold">
+        MS
+      </div>
+      <div className="leading-tight">
+        <div className="font-semibold text-gray-900">Mobile Shop</div>
+        <div className="text-xs text-gray-500">Repair & POS</div>
+      </div>
+    </div>
 
-          <button
-            className="md:hidden inline-flex items-center justify-center w-10 h-10 rounded-lg border border-gray-200 hover:bg-gray-50"
-            onClick={onCloseMobile}
-          >
-            ✕
-          </button>
-        </div>
+    {/* User Info */}
+    <div className="rounded-2xl bg-gray-50 border border-gray-200 p-3 mt-3">
+      <div className="text-xs text-gray-500">Signed in as</div>
+      <div className="mt-1 font-semibold text-gray-900">
+        {user?.full_name || "User"} ({user?.role || "Role"})
+      </div>
+      <div className="mt-2 inline-flex items-center gap-2 text-xs px-2 py-1 rounded-lg bg-black text-white">
+        <span className="w-2 h-2 rounded-full bg-green-400" />
+        Online
+      </div>
+    </div>
 
-        <div className="p-3">
-          {/* User Card */}
-          <div className="rounded-2xl bg-gray-50 border border-gray-200 p-3">
-            <div className="text-xs text-gray-500">Signed in as</div>
+    {/* Navigation */}
+    <div className="mt-4 space-y-1">
+      {navToShow.map((item) => (
+        <button
+          key={item.key}
+          onClick={() => onChange(item.key)}
+          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition
+            ${
+              active === item.key
+                ? "bg-black text-white"
+                : "hover:bg-gray-100 text-gray-800"
+            }`}
+        >
+          <Icon name={item.icon} active={active === item.key} />
+          <span className="text-sm font-medium">{item.label}</span>
+        </button>
+      ))}
+    </div>
+  </div>
 
-            <div className="mt-1 font-semibold text-gray-900">
-              {user?.full_name || "User"} ({user?.role || "Role"})
-            </div>
-
-            <div className="mt-2 inline-flex items-center gap-2 text-xs px-2 py-1 rounded-lg bg-black text-white">
-              <span className="w-2 h-2 rounded-full bg-green-400" />
-              Online
-            </div>
-          </div>
-
-          {/* Navigation */}
-          <div className="mt-4 space-y-1">
-            {navToShow.map((item) => {
-              const isActive = active === item.key;
-              return (
-                <button
-                  key={item.key}
-                  onClick={() => onChange(item.key)}
-                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition
-                    ${
-                      isActive
-                        ? "bg-black text-white"
-                        : "hover:bg-gray-100 text-gray-800"
-                    }`}
-                >
-                  <Icon name={item.icon} active={isActive} />
-                  <span className="text-sm font-medium">{item.label}</span>
-                </button>
-              );
-            })}
-
-            {/* Fallback if nothing allowed */}
-            {!isAdmin && navToShow.length === 0 ? (
-              <div className="mt-2 rounded-xl border border-gray-200 bg-gray-50 p-3 text-xs text-gray-600">
-                No menu items enabled for your role. Ask Admin to enable access
-                in Settings.
-              </div>
-            ) : null}
-          </div>
-
-          {/* Logout */}
-          <div className="mt-6 border-t border-gray-200 pt-4">
-            <button
-              onClick={() => {
-                localStorage.removeItem("employee_id");
-                localStorage.removeItem("role");
-                localStorage.removeItem("full_name");
-                localStorage.removeItem("sidebar_keys");
-                onLogout?.();
-                onCloseMobile?.();
-              }}
-              className="w-full rounded-xl border border-gray-200 px-3 py-2.5 hover:bg-gray-50 text-sm font-medium"
-            >
-              Logout
-            </button>
-          </div>
-        </div>
-      </aside>
+  {/* Logout button always at bottom */}
+  <div className="mt-auto p-3 border-t border-gray-200 flex items-center gap-3">
+    <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white font-semibold">
+      {user?.full_name?.[0] || "U"}
+    </div>
+    <div className="flex-1 text-sm font-medium text-gray-900">{user?.full_name || "User"}</div>
+    <button
+      onClick={() => {
+        localStorage.removeItem("employee_id");
+        localStorage.removeItem("role");
+        localStorage.removeItem("full_name");
+        localStorage.removeItem("sidebar_keys");
+        onLogout?.();
+        onCloseMobile?.();
+      }}
+      className="flex items-center gap-1 text-red-500 hover:text-red-600 text-sm font-medium"
+    >
+      <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+        <path d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h6a2 2 0 012 2v1" />
+      </svg>
+      Logout
+    </button>
+  </div>
+</aside>
     </>
   );
 }
