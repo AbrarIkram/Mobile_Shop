@@ -331,11 +331,7 @@ export default function App() {
           </PageShell>
         );
       default:
-        return (
-          <PageShell>
-            <Placeholder title="Not Found" desc="Page not found." />
-          </PageShell>
-        );
+        return <Dashboard />
     }
   };
 
