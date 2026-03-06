@@ -4,28 +4,19 @@ import { supabase } from "../../supabaseClient";
 export default function InvoiceModal({ saleId, onClose }) {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
-  const [sale, setSale] = useState(null); // header
-  const [items, setItems] = useState([]); // lines
-
+  const [sale, setSale] = useState(null);
+  const [items, setItems] = useState([]);
   const printRef = useRef(null);
 
   async function loadInvoice() {
     setLoading(true);
     setErr("");
 
-    // 1) sale header (customer + created_by)
     const { data: saleData, error: saleErr } = await supabase
       .from("sales")
       .select(`
-        sale_id,
-        job_id,
-        customer_id,
-        created_by_employee_id,
-        subtotal,
-        discount,
-        total,
-        payment_method,
-        created_at,
+        sale_id, job_id, customer_id, created_by_employee_id,
+        subtotal, discount, total, payment_method, created_at,
         customers:customers ( full_name, mobile_number, address, national_id ),
         cashier:employees!sales_created_by_employee_id_fkey ( full_name, role )
       `)
@@ -33,29 +24,17 @@ export default function InvoiceModal({ saleId, onClose }) {
       .eq("is_deleted", false)
       .maybeSingle();
 
-    if (saleErr) {
-      setErr(saleErr.message);
-      setLoading(false);
-      return;
-    }
-    if (!saleData) {
-      setErr("Sale not found.");
+    if (saleErr || !saleData) {
+      setErr(saleErr?.message || "Sale not found.");
       setLoading(false);
       return;
     }
 
-    // 2) sale items (join product/service names)
     const { data: itemsData, error: itemsErr } = await supabase
       .from("sale_items")
       .select(`
-        sale_item_id,
-        item_type,
-        product_id,
-        service_id,
-        quantity,
-        unit_price,
-        unit_cost,
-        line_total,
+        sale_item_id, item_type, product_id, service_id,
+        quantity, unit_price, unit_cost, line_total,
         products:products ( name, model ),
         services:services ( name )
       `)
@@ -78,268 +57,240 @@ export default function InvoiceModal({ saleId, onClose }) {
     if (saleId) loadInvoice();
   }, [saleId]);
 
-  const shop = useMemo(() => {
-    // You can replace these with Settings later
-    return {
-      name: "Mobile Repair & Accessories",
-      phone: "+94 XX XXX XXXX",
-      address: "Your shop address here",
-    };
-  }, []);
+  const shop = useMemo(() => ({
+    name: "Mobile Repair & Accessories",
+    phone: "+94 XX XXX XXXX",
+    address: "Your shop address here",
+    email: "info@shop.com",
+  }), []);
 
-  function money(v) {
-    const n = Number(v);
-    if (!Number.isFinite(n)) return "0.00";
-    return n.toFixed(2);
-  }
+  const money = (v) => Number.isFinite(Number(v)) ? Number(v).toFixed(2) : "0.00";
 
-  function printInvoice() {
-    // Simple print using browser
-    window.print();
-  }
+  const formatDate = (iso) => {
+    if (!iso) return "";
+    return new Date(iso).toLocaleString("en-LK", { dateStyle: "medium", timeStyle: "short" });
+  };
 
-  // PDF download (no library): open print dialog is the simplest.
-  // If you want real PDF download, I’ll give you jsPDF version next.
-  // For now, print = save as PDF.
-  function downloadPDF() {
-    window.print();
-  }
+const handlePrint = () => {
+  const content = printRef.current.innerHTML;
+  const printWindow = window.open("", "_blank");
+  printWindow.document.write(`
+    <html><head><title>Invoice</title>
+      <style>
+        body { font-family: sans-serif; padding: 20px; }
+        table { border-collapse: collapse; width: 100%; }
+        th, td { border: 1px solid #000; padding: 8px; }
+      </style>
+    </head><body>${content}</body></html>
+  `);
+  printWindow.document.close();
+  printWindow.focus();
+  printWindow.print();
+  printWindow.close();
+};
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 print:p-0">
-      <div className="absolute inset-0 bg-black/40 print:hidden" onClick={onClose} />
+    <>
+      {/* 🖨️ PRINT CSS */}
+      <style>{`
+@media print {
+  body * {
+    visibility: hidden !important;
+  }
 
-      <div className="relative w-full max-w-3xl rounded-2xl bg-white shadow-xl border border-gray-200 print:border-0 print:shadow-none print:rounded-none">
-        {/* Top Bar */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200 print:hidden">
-          <div>
-            <div className="text-lg font-semibold text-gray-900">Invoice</div>
-            <div className="text-sm text-gray-500">Sale #{saleId}</div>
-          </div>
+  .modal-wrapper {
+    position: static !important; /* allow content to flow normally */
+    visibility: visible !important;
+  }
 
-          <div className="flex items-center gap-2">
-            <button
-              onClick={printInvoice}
-              className="rounded-xl border border-gray-200 px-4 py-2 text-sm hover:bg-gray-50"
-              disabled={loading}
-            >
-              Print
-            </button>
-            <button
-              onClick={downloadPDF}
-              className="rounded-xl bg-black px-4 py-2 text-sm text-white hover:opacity-90"
-              disabled={loading}
-            >
-              Download PDF
-            </button>
-            <button
-              onClick={onClose}
-              className="h-10 w-10 rounded-xl border border-gray-200 hover:bg-gray-50"
-              aria-label="Close"
-            >
-              ✕
-            </button>
-          </div>
-        </div>
+  .print-content, .print-content * {
+    visibility: visible !important;
+  }
 
-        {/* Printable area */}
-        <div ref={printRef} className="p-5 md:p-8 print:p-0">
-          {/* GOLD/BLACK/WHITE theme */}
-          <div className="rounded-2xl border border-gray-200 overflow-hidden print:border-0">
-            {/* Header stripe */}
-            <div className="bg-black px-6 py-5">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <div className="text-white text-xl font-semibold">
-                    {shop.name}
-                  </div>
-                  <div className="text-white/80 text-sm mt-1">
-                    {shop.address}
-                  </div>
-                  <div className="text-white/80 text-sm">{shop.phone}</div>
-                </div>
+  .print-content {
+    position: relative !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 210mm !important;
+    min-height: 297mm !important;
+    margin: 0 !important;
+    padding: 12mm 15mm !important;
+    background: white !important;
+    color: black !important;
+    z-index: 9999 !important;
+  }
 
-                <div className="text-right">
-                  <div className="inline-flex items-center justify-center rounded-full px-3 py-1 text-xs font-semibold border border-yellow-400/60 text-yellow-300">
-                    GOLD INVOICE
-                  </div>
-                  <div className="mt-2 text-white text-sm">
-                    Sale #{saleId}
-                  </div>
-                  <div className="text-white/80 text-xs mt-1">
-                    {sale?.created_at ? new Date(sale.created_at).toLocaleString() : ""}
-                  </div>
-                </div>
-              </div>
+  button, input, select, textarea {
+    display: none !important;
+  }
+
+  table {
+    border-collapse: collapse !important;
+    width: 100% !important;
+  }
+
+  th, td {
+    border: 1px solid #000 !important;
+    padding: 8px !important;
+  }
+}
+`}</style>
+
+      {/* 🖥️ MODAL VIEW */}
+      <div className="modal-wrapper fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+
+        <div className="relative w-full max-w-4xl bg-white rounded-2xl shadow-xl border border-gray-200 overflow-hidden flex flex-col max-h-[95vh]">
+          {/* Header */}
+          <div className="flex items-center justify-between px-5 py-3 border-b border-gray-200 flex-shrink-0">
+            <div>
+              <div className="text-lg font-semibold text-gray-900">Invoice</div>
+              <div className="text-sm text-gray-500">Sale #{saleId}</div>
             </div>
+            <div className="flex items-center gap-2">
+              <button onClick={handlePrint} className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm hover:bg-gray-50">
+                🖨️ Print
+              </button>
+              <button onClick={onClose} className="h-8 w-8 rounded-lg border border-gray-200 hover:bg-gray-50 flex items-center justify-center">✕</button>
+            </div>
+          </div>
 
-            {/* Body */}
-            <div className="bg-white px-6 py-5">
-              {loading ? (
-                <div className="text-sm text-gray-600">Loading invoice...</div>
-              ) : err ? (
-                <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-                  {err}
+          {/* Content */}
+          <div className="flex-1 overflow-y-auto bg-gray-50">
+            <div className="p-6">
+              
+              {/* 🧾 INVOICE - Clean Design (Matches Screenshot) */}
+              <div ref={printRef} className="print-content bg-white">
+                
+                {/* Header Section */}
+                <div className="flex justify-between items-start mb-6">
+                  <div>
+                    <h1 className="text-xl font-bold text-black mb-1">{shop.name}</h1>
+                    <p className="text-sm text-gray-600">{shop.address}</p>
+                    <p className="text-sm text-gray-600">{shop.phone} • {shop.email}</p>
+                  </div>
+                  <div className="text-right">
+                    <div className="border border-black px-3 py-1 inline-block font-bold text-sm mb-2">
+                      INVOICE
+                    </div>
+                    <div className="text-sm font-bold"># {String(saleId).padStart(6, "0")}</div>
+                    <div className="text-xs text-gray-600 mt-1">{formatDate(sale?.created_at)}</div>
+                  </div>
                 </div>
-              ) : (
-                <>
-                  {/* Customer + Sale info */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                    <InfoCard
-                      label="Customer"
-                      value={sale?.customers?.full_name || "-"}
-                      sub={sale?.customers?.mobile_number || ""}
-                    />
-                    <InfoCard
-                      label="Address"
-                      value={sale?.customers?.address || "-"}
-                      sub={sale?.customers?.national_id || ""}
-                    />
-                    <InfoCard
-                      label="Payment"
-                      value={sale?.payment_method || "-"}
-                      sub={sale?.cashier?.full_name ? `Cashier: ${sale.cashier.full_name}` : ""}
-                    />
-                  </div>
 
-                  {/* Items */}
-                  <div className="mt-5">
-                    <div className="text-sm font-semibold text-gray-900">
-                      Items
+                {/* Bill To & Payment - Side by Side */}
+                <div className="grid grid-cols-2 gap-4 mb-6">
+                  <div className="border border-gray-300 p-4">
+                    <div className="text-xs font-semibold text-gray-500 uppercase mb-2">Bill To</div>
+                    <div className="font-medium text-black text-base">
+                      {sale?.customers?.full_name || "Walk-in Customer"}
                     </div>
+                    {sale?.customers?.mobile_number && (
+                      <div className="text-sm text-gray-600 mt-1">📱 {sale.customers.mobile_number}</div>
+                    )}
+                    {sale?.customers?.address && (
+                      <div className="text-sm text-gray-600">{sale.customers.address}</div>
+                    )}
+                  </div>
+                  <div className="border border-gray-300 p-4">
+                    <div className="text-xs font-semibold text-gray-500 uppercase mb-2">Payment</div>
+                    <div className="text-sm">
+                      <div className="mb-1">Method: <span className="font-medium capitalize">{sale?.payment_method || "Cash"}</span></div>
+                      <div>Cashier: <span className="font-medium">{sale?.cashier?.full_name || "-"}</span></div>
+                    </div>
+                  </div>
+                </div>
 
-                    <div className="mt-3 overflow-x-auto rounded-xl border border-gray-200">
-                      <table className="min-w-[900px] w-full text-sm">
-                        <thead className="bg-gray-50 text-gray-600">
-                          <tr>
-                            <Th>#</Th>
-                            <Th>Type</Th>
-                            <Th>Description</Th>
-                            <Th className="text-right">Qty</Th>
-                            <Th className="text-right">Unit Price</Th>
-                            <Th className="text-right">Line Total</Th>
+                {/* Items Table - Black Header */}
+                <div className="mb-6">
+                  <table className="w-full border-collapse">
+                    <thead className="bg-black text-white">
+                      <tr>
+                        <th className="text-left px-3 py-2 text-sm font-semibold border border-gray-300">#</th>
+                        <th className="text-left px-3 py-2 text-sm font-semibold border border-gray-300">Item</th>
+                        <th className="text-right px-3 py-2 text-sm font-semibold border border-gray-300">Qty</th>
+                        <th className="text-right px-3 py-2 text-sm font-semibold border border-gray-300">Price</th>
+                        <th className="text-right px-3 py-2 text-sm font-semibold border border-gray-300">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {items.map((it, idx) => {
+                        const desc = it.item_type === "Service"
+                          ? it.services?.name || "Service"
+                          : `${it.products?.name || "Product"}${it.products?.model ? ` (${it.products.model})` : ""}`;
+                        const qty = it.item_type === "Service" ? 1 : it.quantity;
+                        return (
+                          <tr key={it.sale_item_id} className="border-b border-gray-200">
+                            <td className="px-3 py-3 text-sm border-l border-gray-300">{idx + 1}</td>
+                            <td className="px-3 py-3 border-l border-gray-300">
+                              <div className="font-medium text-black text-sm">{desc}</div>
+                              <div className="text-xs text-gray-500">{it.item_type}</div>
+                            </td>
+                            <td className="px-3 py-3 text-right text-sm border-l border-gray-300">{qty}</td>
+                            <td className="px-3 py-3 text-right text-sm border-l border-gray-300">Rs. {money(it.unit_price)}</td>
+                            <td className="px-3 py-3 text-right font-semibold text-sm border-l border-r border-gray-300">Rs. {money(it.line_total)}</td>
                           </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-200">
-                          {items.map((it, idx) => {
-                            const desc =
-                              it.item_type === "Service"
-                                ? it.services?.name || "Service"
-                                : `${it.products?.name || "Product"}${
-                                    it.products?.model ? ` (${it.products.model})` : ""
-                                  }`;
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
 
-                            return (
-                              <tr key={it.sale_item_id}>
-                                <Td>{idx + 1}</Td>
-                                <Td>
-                                  <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs border border-gray-200">
-                                    {it.item_type}
-                                  </span>
-                                </Td>
-                                <Td className="font-medium text-gray-900">
-                                  {desc}
-                                </Td>
-                                <Td className="text-right">
-                                  {it.item_type === "Service" ? 1 : it.quantity}
-                                </Td>
-                                <Td className="text-right">{money(it.unit_price)}</Td>
-                                <Td className="text-right font-semibold text-gray-900">
-                                  {money(it.line_total)}
-                                </Td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
+                {/* Totals Box */}
+                <div className="flex justify-end mb-6">
+                  <div className="w-48 border-2 border-black p-3">
+                    <div className="flex justify-between text-sm mb-1">
+                      <span className="text-gray-700">Subtotal</span>
+                      <span className="text-right">Rs. {money(sale?.subtotal || 0)}</span>
                     </div>
-                  </div>
-
-                  {/* Totals */}
-                  <div className="mt-5 flex flex-col md:flex-row md:justify-end gap-4">
-                    <div className="w-full md:w-80 rounded-2xl border border-gray-200 p-4">
-                      <Row label="Subtotal" value={money(sale.subtotal)} />
-                      <Row label="Discount" value={money(sale.discount)} />
-                      <div className="my-3 h-px bg-gray-200" />
-                      <div className="flex items-center justify-between">
-                        <div className="text-sm font-semibold text-gray-900">
-                          Total
-                        </div>
-                        <div className="text-lg font-semibold text-gray-900">
-                          {money(sale.total)}
-                        </div>
-                      </div>
-
-                      <div className="mt-3 rounded-xl bg-black text-white p-3">
-                        <div className="text-xs text-yellow-300 font-semibold">
-                          THANK YOU
-                        </div>
-                        <div className="text-xs text-white/80 mt-1">
-                          Gold • Black • White invoice layout (responsive)
-                        </div>
+                    <div className="flex justify-between text-sm mb-2">
+                      <span className="text-gray-700">Discount</span>
+                      <span className="text-right">- Rs. {money(sale?.discount || 0)}</span>
+                    </div>
+                    <div className="border-t-2 border-black pt-2 mt-2">
+                      <div className="flex justify-between">
+                        <span className="font-bold text-base">TOTAL</span>
+                        <span className="font-bold text-lg">Rs. {money(sale?.total || 0)}</span>
                       </div>
                     </div>
                   </div>
+                </div>
 
-                  {/* Footer */}
-                  <div className="mt-6 text-xs text-gray-500">
-                    This is a system generated invoice. Keep it for your records.
+                {/* Terms Section */}
+                <div className="border border-gray-300 p-4 mb-8">
+                  <div className="text-xs font-semibold text-gray-500 uppercase mb-2">Terms</div>
+                  <ul className="text-xs text-gray-600 space-y-1 list-disc list-inside">
+                    <li>Goods sold not returnable</li>
+                    <li>Check items before leaving</li>
+                    <li>Warranty per manufacturer</li>
+                  </ul>
+                </div>
+
+                {/* Signature Lines */}
+                <div className="grid grid-cols-2 gap-8 mt-12">
+                  <div className="text-center">
+                    <div className="border-t border-dashed border-gray-400 pt-2">
+                      <div className="text-xs text-gray-500 mt-1">Customer</div>
+                    </div>
                   </div>
-                </>
-              )}
+                  <div className="text-center">
+                    <div className="border-t border-dashed border-gray-400 pt-2">
+                      <div className="text-xs text-gray-500 mt-1">Authorized</div>
+                      <div className="text-xs font-medium mt-1">{sale?.cashier?.full_name || ""}</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Footer */}
+                <div className="text-center text-xs text-gray-500 mt-12">
+                  Thank you! • {new Date().toLocaleString("en-LK")}
+                </div>
+
+              </div>
             </div>
           </div>
         </div>
       </div>
-
-      {/* Print CSS */}
-      <style>{`
-        @media print {
-          body { background: white !important; }
-          .print\\:hidden { display: none !important; }
-          .print\\:p-0 { padding: 0 !important; }
-          .print\\:border-0 { border: 0 !important; }
-          .print\\:shadow-none { box-shadow: none !important; }
-          .print\\:rounded-none { border-radius: 0 !important; }
-        }
-
-        /* ✅ Mobile invoice table scroll */
-        @media (max-width: 640px) {
-          table {
-            min-width: 700px !important;
-          }
-        }
-      `}</style>
-    </div>
+    </>
   );
-}
-
-function InfoCard({ label, value, sub }) {
-  return (
-    <div className="rounded-2xl border border-gray-200 p-4 bg-white">
-      <div className="text-xs text-gray-500">{label}</div>
-      <div className="mt-1 text-sm font-semibold text-gray-900">{value}</div>
-      {sub ? <div className="mt-1 text-xs text-gray-500">{sub}</div> : null}
-    </div>
-  );
-}
-
-function Row({ label, value }) {
-  return (
-    <div className="flex items-center justify-between text-sm">
-      <div className="text-gray-600">{label}</div>
-      <div className="text-gray-900 font-medium">{value}</div>
-    </div>
-  );
-}
-
-function Th({ children, className = "" }) {
-  return (
-    <th className={`px-4 py-3 text-left font-semibold ${className}`}>
-      {children}
-    </th>
-  );
-}
-function Td({ children, className = "" }) {
-  return <td className={`px-4 py-3 ${className}`}>{children}</td>;
 }

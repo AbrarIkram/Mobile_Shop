@@ -1,1 +1,5 @@
 @import "tailwindcss";
+
+body.printing .modal-wrapper {
+  display: none !important;
+}
