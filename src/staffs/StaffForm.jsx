@@ -21,13 +21,17 @@ export default function StaffForm({ initialValue, onClose, onSaved }) {
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
 
+  const [username, setUsername] = useState(initialValue?.username || "");
+
+
   const canSave = useMemo(() => {
     if (!full_name.trim()) return false;
     if (!email.trim()) return false;
+    if (!isEdit && !username.trim()) return false;
     if (!ROLES.includes(role)) return false;
-    if (!isEdit && password.trim().length < 3) return false; // simple rule
+    if (!isEdit && password.trim().length < 3) return false;
     return true;
-  }, [full_name, email, role, password, isEdit]);
+  }, [full_name, email, username, role, password, isEdit]);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -48,6 +52,7 @@ export default function StaffForm({ initialValue, onClose, onSaved }) {
 
     const payload = {
       full_name: full_name.trim(),
+      username: username.trim().toLowerCase() || null,
       email: email.trim().toLowerCase(),
       national_id: national_id.trim() || null,
       mobile_number: mobile_number.trim() || null,
@@ -157,6 +162,18 @@ export default function StaffForm({ initialValue, onClose, onSaved }) {
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="Eg: staff@shop.com"
               />
+            </Field>
+            <Field label="Username" required={!isEdit}>
+              <input
+                className="w-full rounded-xl border border-gray-200 px-3 py-2 outline-none focus:ring-2 focus:ring-black/10"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="e.g., rizwan_admin (unique)"
+                disabled={isEdit} // optional: prevent username changes after creation
+              />
+              <div className="text-xs text-gray-400 mt-1">
+                Used for login. Must be unique.
+              </div>
             </Field>
 
             <Field label={isEdit ? "New Password (optional)" : "Password"} required={!isEdit}>

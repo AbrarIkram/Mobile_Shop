@@ -2,7 +2,7 @@ import { useState } from "react";
 import { supabase } from "../../supabaseClient";
 
 export default function Login({ onLogin }) {
-  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState(""); // ← changed from email
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
@@ -12,10 +12,11 @@ export default function Login({ onLogin }) {
     setErr("");
     setLoading(true);
 
+    // 🔍 Search by username (case-insensitive)
     const { data, error } = await supabase
       .from("employees")
       .select("employee_id, full_name, role, password_hash, is_active, sidebar_keys")
-      .eq("email", email.trim().toLowerCase())
+      .eq("username", username.trim().toLowerCase()) // ← lookup by username
       .eq("is_deleted", false)
       .maybeSingle();
 
@@ -37,14 +38,15 @@ export default function Login({ onLogin }) {
       return;
     }
 
-    // ⚠️ For now comparing plain text
+    // ⚠️ WARNING: Plain text comparison is unsafe!
+    // Use bcrypt/argon2 via Edge Function or Supabase Auth in production
     if (data.password_hash !== password.trim()) {
       setErr("Invalid password");
       setLoading(false);
       return;
     }
 
-    // ✅ Store session in localStorage
+    // ✅ Store session
     localStorage.setItem("employee_id", data.employee_id);
     localStorage.setItem("role", data.role);
     localStorage.setItem("full_name", data.full_name);
@@ -57,11 +59,9 @@ export default function Login({ onLogin }) {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
       <div className="w-full max-w-md rounded-2xl bg-white shadow-xl border border-gray-200 p-6">
-        <div className="text-xl font-semibold text-gray-900">
-          Login
-        </div>
+        <div className="text-xl font-semibold text-gray-900">Login</div>
         <div className="text-sm text-gray-500 mb-4">
-          Superadmin / Admin / Manager / Repairman
+          Superadmin / Admin / Manager / Cashier / Repairman
         </div>
 
         {err && (
@@ -71,17 +71,21 @@ export default function Login({ onLogin }) {
         )}
 
         <form onSubmit={handleLogin} className="space-y-4">
+          {/* 👤 Username Field */}
           <div>
-            <div className="text-sm font-medium text-gray-700">Email</div>
+            <div className="text-sm font-medium text-gray-700">Username</div>
             <input
-              type="email"
+              type="text"
               className="w-full rounded-xl border border-gray-200 px-3 py-2 focus:ring-2 focus:ring-black/10"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              placeholder="e.g., rizwan_admin"
               required
+              autoComplete="username"
             />
           </div>
 
+          {/* 🔐 Password Field */}
           <div>
             <div className="text-sm font-medium text-gray-700">Password</div>
             <input
@@ -89,14 +93,16 @@ export default function Login({ onLogin }) {
               className="w-full rounded-xl border border-gray-200 px-3 py-2 focus:ring-2 focus:ring-black/10"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••••••"
               required
+              autoComplete="current-password"
             />
           </div>
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full rounded-xl bg-black text-white py-2 hover:opacity-90"
+            className="w-full rounded-xl bg-black text-white py-2 hover:opacity-90 disabled:opacity-60"
           >
             {loading ? "Signing in..." : "Login"}
           </button>
